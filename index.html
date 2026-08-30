@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GEXDESK — Dealer Positioning Terminal v3.0</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">Γ</div>
+        <div><b>GEXDESK</b><small>Dealer Gamma Terminal v3.0</small></div>
+      </div>
+      <div class="search-bar" onclick="openCommandPalette()">
+        <span class="shortcut">⌘K</span>
+        <input placeholder="Jump ticker or command..." readonly />
+      </div>
+      <div class="top-controls">
+        <button class="btn-icon" onclick="togglePanel('left')" title="Toggle Watchlist">📑 Rail</button>
+        <button class="btn-icon" onclick="togglePanel('right')" title="Toggle Levels Panel">📊 Side</button>
+        <button class="btn-icon" onclick="toggleTheme()" title="Switch Theme">☀️/🌙</button>
+        <div class="status-indicator">
+          <span class="dot"></span>
+          <span id="latency">WS: 12ms</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Shell -->
+    <div class="shell" id="shell">
+      <!-- Left Rail: Watchlist -->
+      <aside class="rail">
+        <h3><span>Watchlist</span> <small style="font-size:8px; color:var(--text-muted)">1-4 keys</small></h3>
+        <div id="watch">
+          <div class="watchlist-item active" onclick="switchTicker(0)">
+            <div><span class="ticker">[1] SPY</span><small style="display:block; color:var(--text-muted);">S&P 500 ETF</small></div>
+            <div class="val" id="val-SPY">582.40<span style="display:block; color:var(--accent-green);">+0.75%</span></div>
+          </div>
+          <div class="watchlist-item" onclick="switchTicker(1)">
+            <div><span class="ticker">[2] NVDA</span><small style="display:block; color:var(--text-muted);">NVIDIA Corp</small></div>
+            <div class="val" id="val-NVDA">138.50<span style="display:block; color:var(--accent-green);">+2.15%</span></div>
+          </div>
+          <div class="watchlist-item" onclick="switchTicker(2)">
+            <div><span class="ticker">[3] TSLA</span><small style="display:block; color:var(--text-muted);">Tesla Inc</small></div>
+            <div class="val" id="val-TSLA">245.20<span style="display:block; color:var(--accent-red);">-0.85%</span></div>
+          </div>
+          <div class="watchlist-item" onclick="switchTicker(3)">
+            <div><span class="ticker">[4] QQQ</span><small style="display:block; color:var(--text-muted);">Nasdaq 100</small></div>
+            <div class="val" id="val-QQQ">502.10<span style="display:block; color:var(--accent-green);">+0.42%</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Stage -->
+      <section class="stage">
+        <div class="head">
+          <div>
+            <div class="sym-xl" id="sym">SPY</div>
+            <div class="badges" id="badges">
+              <span class="badge">ETF · Options Heavy</span>
+              <span class="badge green">Net Gamma: +$2.84B</span>
+            </div>
+          </div>
+          <div class="px-xl" id="px">582.40 <span class="change positive" id="px-change">+4.35 (+0.75%)</span></div>
+        </div>
+
+        <div class="chartbox">
+          <div class="chart-tools">
+            <div class="seg" id="metricSeg">
+              <button class="active" onclick="setMetric('gex')">Gamma Exposure (GEX)</button>
+              <button onclick="setMetric('dex')">Delta Exposure (DEX)</button>
+            </div>
+            <div class="seg" id="tenorSeg">
+              <button class="active" onclick="setTenor('all')">All Expiries</button>
+              <button onclick="setTenor('0dte')">0DTE Only</button>
+              <button onclick="setTenor('monthly')">Monthly</button>
+            </div>
+          </div>
+          <div class="canvas-container">
+            <canvas id="mainChart"></canvas>
+          </div>
+        </div>
+
+        <div class="lower">
+          <div class="card">
+            <h4>GEX Heatmap · Strike × Expiry</h4>
+            <div class="canvas-container"><canvas id="heat"></canvas></div>
+          </div>
+          <div class="card">
+            <h4>Options Flow · Nearest Expiry</h4>
+            <div class="canvas-container"><canvas id="flowChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Side -->
+      <aside class="side">
+        <h4>Scenario / What-if</h4>
+        <div class="scenario-box">
+          <label>Spot Shift Simulation</label>
+          <div class="scenario-btns">
+            <button onclick="runScenario(-0.02)">-2%</button>
+            <button onclick="runScenario(-0.01)">-1%</button>
+            <button onclick="runScenario(0)">Reset</button>
+            <button onclick="runScenario(0.01)">+1%</button>
+            <button onclick="runScenario(0.02)">+2%</button>
+          </div>
+        </div>
+
+        <h4>Key Levels</h4>
+        <div id="levels" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; background: var(--bg-base); padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+            <span style="color:var(--text-muted)">Gamma Flip</span>
+            <span style="font-weight:bold; color:var(--accent-blue);" id="lvl-flip">580.50</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; background: var(--bg-base); padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+            <span style="color:var(--text-muted)">Call Wall</span>
+            <span style="font-weight:bold; color:var(--accent-green);" id="lvl-call">590.00</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; background: var(--bg-base); padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+            <span style="color:var(--text-muted)">Put Wall</span>
+            <span style="font-weight:bold; color:var(--accent-red);" id="lvl-put">570.00</span>
+          </div>
+        </div>
+
+        <h4>Concentration</h4>
+        <table class="table">
+          <thead>
+            <tr><th>Strike</th><th>GEX</th><th>DEX</th><th>Flow</th></tr>
+          </thead>
+          <tbody id="top">
+            <tr><td>590.0</td><td class="pos">+$450M</td><td class="pos">+$120M</td><td>Call</td></tr>
+            <tr><td>585.0</td><td class="pos">+$180M</td><td class="neg">-$45M</td><td>Call</td></tr>
+            <tr><td>580.0</td><td class="neg">-$320M</td><td class="neg">-$110M</td><td>Put</td></tr>
+            <tr><td>575.0</td><td class="pos">+$90M</td><td class="pos">+$30M</td><td>Call</td></tr>
+          </tbody>
+        </table>
+
+        <div class="foot">
+          <span>Institutional Engine</span>
+          <span style="cursor:pointer; color:var(--accent-blue);">ℹ</span>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal -->
+  <div class="modal-overlay" id="cmdModal" onclick="closeCommandPalette(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <input type="text" class="modal-input" id="cmdInput" placeholder="Type a ticker (SPY, NVDA...) or command..." oninput="filterCommands()" />
+      <div class="modal-list" id="cmdList">
+        <div class="modal-item" onclick="selectCommand('SPY')"><span>SPY — S&P 500 ETF</span><small>ETF</small></div>
+        <div class="modal-item" onclick="selectCommand('NVDA')"><span>NVDA — NVIDIA Corp</span><small>Equity</small></div>
+        <div class="modal-item" onclick="selectCommand('TSLA')"><span>TSLA — Tesla Inc</span><small>Equity</small></div>
+        <div class="modal-item" onclick="selectCommand('QQQ')"><span>QQQ — Nasdaq 100</span><small>ETF</small></div>
+        <div class="modal-item" onclick="selectCommand('TOGGLE_THEME')"><span>Toggle Light/Dark Theme</span><small>Command</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart.js & Main Script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
