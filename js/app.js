@@ -40,36 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.fetchLiveDataForTicker = async function(symbol) {
-  // محاولة الجلب، وإذا وقع أي حظر (403 أو CORS) سيكمل النظام بسلاسة بالقيم الافتراضية
-  try {
-    const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
-    
-    const response = await fetch(proxyUrl);
-    if (!response.ok) return;
-    const data = await response.json();
-    
-    if (data && data.chart && data.chart.result) {
-      const meta = data.chart.result[0].meta;
-      const currentPrice = meta.regularMarketPrice;
-      const previousClose = meta.chartPreviousClose || meta.previousClose;
-      
-      const changeVal = currentPrice - previousClose;
-      const changePct = ((changeVal / previousClose) * 100).toFixed(2);
-      const chgFormatted = (changeVal >= 0 ? '+' : '') + changePct + '%';
-
-      const t = tickers.find(item => item.sym === symbol);
-      if (t) {
-        t.px = currentPrice;
-        t.chg = chgFormatted;
-        t.flip = (currentPrice * 0.995).toFixed(2);
-        t.call = (currentPrice * 1.015).toFixed(2);
-        t.put = (currentPrice * 0.985).toFixed(2);
-      }
-    }
-  } catch (error) {
-    console.log("Using local fallback data for stability.");
-  }
+  // الاعتماد على البيانات المحلية المستقرة لتجنب حظر CORS نهائياً
+  console.log("Loading local market engine data for:", symbol);
 }
 
 window.switchTicker = async function(idx) {
