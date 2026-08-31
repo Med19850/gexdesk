@@ -36,21 +36,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // جلب البيانات الحية عند فتح الصفحة
   window.switchTicker(0);
 });
 
 window.fetchLiveDataForTicker = async function(symbol) {
   try {
-    // استدعاء مباشر لـ Yahoo Finance API الخاص بالأسعار الحية عبر Proxy مجاني وسريع
     const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooApiUrl)}`;
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(yahooApiUrl)}`;
     
     const response = await fetch(proxyUrl);
-    const jsonResult = await response.json();
+    const data = await response.json();
     
-    if (jsonResult && jsonResult.contents) {
-      const data = JSON.parse(jsonResult.contents);
+    if (data && data.chart && data.chart.result) {
       const meta = data.chart.result[0].meta;
       const currentPrice = meta.regularMarketPrice;
       const previousClose = meta.chartPreviousClose || meta.previousClose;
@@ -63,15 +60,13 @@ window.fetchLiveDataForTicker = async function(symbol) {
       if (t) {
         t.px = currentPrice;
         t.chg = chgFormatted;
-        
-        // حساب مستويات تقريبية ذكية بناءً على السعر الحقيقي الجديد لـ Gex/Flip/Walls
         t.flip = (currentPrice * 0.995).toFixed(2);
         t.call = (currentPrice * 1.015).toFixed(2);
         t.put = (currentPrice * 0.985).toFixed(2);
       }
     }
   } catch (error) {
-    console.error("Error fetching direct Yahoo data:", error);
+    console.error("Error fetching direct Yahoo data via corsproxy:", error);
   }
 }
 
@@ -79,7 +74,6 @@ window.switchTicker = async function(idx) {
   currentTickerIdx = idx;
   const t = tickers[idx];
   
-  // جلب السعر الحي قبل التحديث على الواجهة
   await window.fetchLiveDataForTicker(t.sym);
 
   if(document.getElementById('sym')) document.getElementById('sym').innerText = t.sym;
