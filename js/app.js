@@ -163,3 +163,7 @@ setInterval(() => {
     latencyEl.innerText = `WS: ${randomLatency}ms`;
   }
 }, 2500);
+// جلب البيانات الحية أوتوماتيكياً لأول تيكر (SPY) بمجرد فتح الصفحة
+fetchLiveDataForTicker(tickers[currentTickerIdx].sym).then(() => {
+    switchTicker(currentTickerIdx);
+});
