@@ -36,19 +36,70 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // إضافة زر التحديث إلى الواجهة أوتوماتيكياً بجانب الـ Ticker
+  injectRefreshButton();
+
   window.switchTicker(0);
 });
 
-window.fetchLiveDataForTicker = async function(symbol) {
-  // الاعتماد على البيانات المحلية المستقرة لتجنب حظر CORS نهائياً
-  console.log("Loading local market engine data for:", symbol);
+function injectRefreshButton() {
+  const headerEl = document.querySelector('.watchlist-item')?.parentElement?.parentElement;
+  // يمكننا إضافة زر تحديث في الشريط العلوي قرب شريط البحث أو أسفل الشاشة
+  const topNav = document.querySelector('.search-bar, header, .top-bar, .terminal-header') || document.body;
+  
+  const btn = document.createElement('button');
+  btn.innerText = "🔄 جلب الأسعار الحية";
+  btn.style.cssText = "background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 10px; font-size: 12px;";
+  btn.onclick = () => window.fetchLivePrices();
+  
+  // وضعه في مكان بارز في الأعلى
+  const targetArea = document.querySelector('header') || document.body.firstElementChild;
+  if (targetArea) {
+    targetArea.prepend(btn);
+  }
 }
 
-window.switchTicker = async function(idx) {
+window.fetchLivePrices = async function() {
+  const btn = document.querySelector('button');
+  if(btn) btn.innerText = "⏳ جاري التحديث...";
+
+  for (let t of tickers) {
+    try {
+      const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${t.sym}?interval=1d`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
+      
+      const response = await fetch(proxyUrl);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.chart && data.chart.result) {
+          const meta = data.chart.result[0].meta;
+          const currentPrice = meta.regularMarketPrice;
+          const previousClose = meta.chartPreviousClose || meta.previousClose;
+          
+          const changeVal = currentPrice - previousClose;
+          const changePct = ((changeVal / previousClose) * 100).toFixed(2);
+          
+          t.px = currentPrice;
+          t.chg = (changeVal >= 0 ? '+' : '') + changePct + '%';
+          t.flip = (currentPrice * 0.995).toFixed(2);
+          t.call = (currentPrice * 1.015).toFixed(2);
+          t.put = (currentPrice * 0.985).toFixed(2);
+        }
+      }
+    } catch (e) {
+      console.log(`Could not fetch live price for ${t.sym}, using cache.`);
+    }
+  }
+
+  // إعادة تحديث الواجهة بالسعر الجديد للـ Ticker الحالي
+  window.switchTicker(currentTickerIdx);
+  if(btn) btn.innerText = "🔄 جلب الأسعار الحية";
+  alert("تم تحديث الأسعار بنجاح!");
+}
+
+window.switchTicker = function(idx) {
   currentTickerIdx = idx;
   const t = tickers[idx];
-  
-  await window.fetchLiveDataForTicker(t.sym);
 
   if(document.getElementById('sym')) document.getElementById('sym').innerText = t.sym;
   if(document.getElementById('px')) {
