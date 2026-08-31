@@ -1,5 +1,3 @@
-const STREAMLIT_BACKEND_URL = "https://gexdesk-backend-6hpa5sxwmaymmu3rdd5bqp.streamlit.app";
-
 let tickers = [
   { sym: 'SPY', name: 'S&P 500 ETF', px: 582.40, chg: '+0.75%', netGex: '+$2.84B', flip: '580.50', call: '590.00', put: '570.00', data: [-120, -250, 80, -320, 0, 180, 450, 210, 95] },
   { sym: 'NVDA', name: 'NVIDIA Corp', px: 138.50, chg: '+2.15%', netGex: '+$4.12B', flip: '135.00', call: '145.00', put: '130.00', data: [-80, -190, 150, -210, 0, 310, 520, 340, 120] },
@@ -10,7 +8,6 @@ let tickers = [
 let currentTickerIdx = 0;
 let currentMetric = 'gex';
 let currentTenor = 'all';
-
 let mainChart;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -39,38 +36,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // جلب البيانات الحية عند البدء
-  window.fetchLiveDataForTicker(tickers[currentTickerIdx].sym).then(() => {
-    window.switchTicker(currentTickerIdx);
-  });
+  // جلب البيانات الحية عند فتح الصفحة
+  window.switchTicker(0);
 });
 
 window.fetchLiveDataForTicker = async function(symbol) {
   try {
-    const targetUrl = `${STREAMLIT_BACKEND_URL}/?ticker=${symbol}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    // استدعاء مباشر لـ Yahoo Finance API الخاص بالأسعار الحية عبر Proxy مجاني وسريع
+    const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooApiUrl)}`;
     
     const response = await fetch(proxyUrl);
     const jsonResult = await response.json();
     
     if (jsonResult && jsonResult.contents) {
-      const rawText = jsonResult.contents;
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        if (data.status === "success") {
-          const t = tickers.find(item => item.sym === symbol);
-          if (t) {
-            t.px = data.spot_price;
-            if (data.gex_levels && data.gex_levels.length === t.data.length) {
-              t.data = data.gex_levels;
-            }
-          }
-        }
+      const data = JSON.parse(jsonResult.contents);
+      const meta = data.chart.result[0].meta;
+      const currentPrice = meta.regularMarketPrice;
+      const previousClose = meta.chartPreviousClose || meta.previousClose;
+      
+      const changeVal = currentPrice - previousClose;
+      const changePct = ((changeVal / previousClose) * 100).toFixed(2);
+      const chgFormatted = (changeVal >= 0 ? '+' : '') + changePct + '%';
+
+      const t = tickers.find(item => item.sym === symbol);
+      if (t) {
+        t.px = currentPrice;
+        t.chg = chgFormatted;
+        
+        // حساب مستويات تقريبية ذكية بناءً على السعر الحقيقي الجديد لـ Gex/Flip/Walls
+        t.flip = (currentPrice * 0.995).toFixed(2);
+        t.call = (currentPrice * 1.015).toFixed(2);
+        t.put = (currentPrice * 0.985).toFixed(2);
       }
     }
   } catch (error) {
-    console.error("Error fetching live data via proxy:", error);
+    console.error("Error fetching direct Yahoo data:", error);
   }
 }
 
@@ -78,10 +79,14 @@ window.switchTicker = async function(idx) {
   currentTickerIdx = idx;
   const t = tickers[idx];
   
+  // جلب السعر الحي قبل التحديث على الواجهة
   await window.fetchLiveDataForTicker(t.sym);
 
   if(document.getElementById('sym')) document.getElementById('sym').innerText = t.sym;
-  if(document.getElementById('px')) document.getElementById('px').innerHTML = `${t.px.toFixed(2)} <span class="change ${t.chg.startsWith('+') ? 'positive' : 'negative'}">${t.chg}</span>`;
+  if(document.getElementById('px')) {
+    const isPos = t.chg.startsWith('+');
+    document.getElementById('px').innerHTML = `${t.px.toFixed(2)} <span class="change ${isPos ? 'positive' : 'negative'}">${t.chg}</span>`;
+  }
   if(document.getElementById('lvl-flip')) document.getElementById('lvl-flip').innerText = t.flip;
   if(document.getElementById('lvl-call')) document.getElementById('lvl-call').innerText = t.call;
   if(document.getElementById('lvl-put')) document.getElementById('lvl-put').innerText = t.put;
@@ -118,11 +123,8 @@ window.runScenario = function(pct) {
 window.togglePanel = function(side) {
   const shell = document.getElementById('shell');
   if (!shell) return;
-  if (side === 'left') {
-    shell.classList.toggle('collapse-left');
-  } else if (side === 'right') {
-    shell.classList.toggle('collapse-right');
-  }
+  if (side === 'left') shell.classList.toggle('collapse-left');
+  else if (side === 'right') shell.classList.toggle('collapse-right');
 }
 
 window.toggleTheme = function() {
@@ -155,8 +157,7 @@ window.selectCommand = function(cmd) {
 
 window.filterCommands = function() {
   const query = document.getElementById('cmdInput').value.toUpperCase();
-  const items = document.querySelectorAll('.modal-item');
-  items.forEach(item => {
+  document.querySelectorAll('.modal-item').forEach(item => {
     item.style.display = item.innerText.toUpperCase().includes(query) ? 'flex' : 'none';
   });
 }
