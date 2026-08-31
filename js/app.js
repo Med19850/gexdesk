@@ -1,4 +1,7 @@
-const tickers = [
+// الرابط ديال السيرفر لي صاوبنا في Streamlit
+const STREAMLIT_BACKEND_URL = "https://gexdesk-backend-6hpa5sxwmaymmu3rdd5bqp.streamlit.app";
+
+let tickers = [
   { sym: 'SPY', name: 'S&P 500 ETF', px: 582.40, chg: '+0.75%', netGex: '+$2.84B', flip: '580.50', call: '590.00', put: '570.00', data: [-120, -250, 80, -320, 0, 180, 450, 210, 95] },
   { sym: 'NVDA', name: 'NVIDIA Corp', px: 138.50, chg: '+2.15%', netGex: '+$4.12B', flip: '135.00', call: '145.00', put: '130.00', data: [-80, -190, 150, -210, 0, 310, 520, 340, 120] },
   { sym: 'TSLA', name: 'Tesla Inc', px: 245.20, chg: '-0.85%', netGex: '-$850M', flip: '248.00', call: '260.00', put: '235.00', data: [90, 140, -110, 250, 0, -180, -390, -150, -70] },
@@ -34,9 +37,37 @@ const mainChart = new Chart(ctx, {
   }
 });
 
-function switchTicker(idx) {
+// دالة جلب البيانات الحية من Backend
+async function fetchLiveDataForTicker(symbol) {
+  try {
+    const response = await fetch(`${STREAMLIT_BACKEND_URL}/?ticker=${symbol}`);
+    const rawText = await response.text();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const data = JSON.parse(jsonMatch[0]);
+      if (data.status === "success") {
+        const t = tickers.find(item => item.sym === symbol);
+        if (t) {
+          t.px = data.spot_price;
+          // إمكانية تحديث الـ gex_levels إيلا صاوبناهم في البايثون
+          if (data.gex_levels && data.gex_levels.length === t.data.length) {
+            t.data = data.gex_levels;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching live data:", error);
+  }
+}
+
+async function switchTicker(idx) {
   currentTickerIdx = idx;
   const t = tickers[idx];
+  
+  // جلب البيانات الحية قبل التحديث في الواجهة
+  await fetchLiveDataForTicker(t.sym);
+
   document.getElementById('sym').innerText = t.sym;
   document.getElementById('px').innerHTML = `${t.px.toFixed(2)} <span class="change ${t.chg.startsWith('+') ? 'positive' : 'negative'}">${t.chg}</span>`;
   document.getElementById('lvl-flip').innerText = t.flip;
@@ -124,17 +155,11 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// تحديث دوري للاتصال والأسعار الحية
 setInterval(() => {
   const latencyEl = document.getElementById('latency');
-  const randomLatency = Math.floor(Math.random() * 8) + 9;
-  latencyEl.innerText = `WS: ${randomLatency}ms`;
-
-  const activeValEl = document.getElementById(`val-${tickers[currentTickerIdx].sym}`);
-  if(activeValEl) {
-    const delta = (Math.random() - 0.48) * 0.2;
-    tickers[currentTickerIdx].px += delta;
-    activeValEl.classList.remove('flash-green', 'flash-red');
-    void activeValEl.offsetWidth;
-    activeValEl.classList.add(delta >= 0 ? 'flash-green' : 'flash-red');
+  if(latencyEl) {
+    const randomLatency = Math.floor(Math.random() * 8) + 9;
+    latencyEl.innerText = `WS: ${randomLatency}ms`;
   }
 }, 2500);
