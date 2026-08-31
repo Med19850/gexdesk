@@ -1,8 +1,8 @@
 let tickers = [
-  { sym: 'SPY', name: 'S&P 500 ETF', px: 582.40, chg: '+0.75%', netGex: '+$2.84B', flip: '580.50', call: '590.00', put: '570.00', data: [-120, -250, 80, -320, 0, 180, 450, 210, 95] },
-  { sym: 'NVDA', name: 'NVIDIA Corp', px: 138.50, chg: '+2.15%', netGex: '+$4.12B', flip: '135.00', call: '145.00', put: '130.00', data: [-80, -190, 150, -210, 0, 310, 520, 340, 120] },
-  { sym: 'TSLA', name: 'Tesla Inc', px: 245.20, chg: '-0.85%', netGex: '-$850M', flip: '248.00', call: '260.00', put: '235.00', data: [90, 140, -110, 250, 0, -180, -390, -150, -70] },
-  { sym: 'QQQ', name: 'Nasdaq 100', px: 502.10, chg: '+0.42%', netGex: '+$1.95B', flip: '500.00', call: '515.00', put: '490.00', data: [-100, -210, 60, -280, 0, 150, 380, 190, 80] }
+  { sym: 'SPY', name: 'S&P 500 ETF', px: 582.40, chg: '+0.75%', netGex: '+$2.84B', vanna: '+$142M', io: '4.2M', vol: '1.2M', flow: 'Call', flip: '580.50', call: '590.00', put: '570.00', data: [-120, -250, 80, -320, 0, 180, 450, 210, 95] },
+  { sym: 'NVDA', name: 'NVIDIA Corp', px: 138.50, chg: '+2.15%', netGex: '+$4.12B', vanna: '+$210M', io: '8.5M', vol: '3.4M', flow: 'Call', flip: '135.00', call: '145.00', put: '130.00', data: [-80, -190, 150, -210, 0, 310, 520, 340, 120] },
+  { sym: 'TSLA', name: 'Tesla Inc', px: 245.20, chg: '-0.85%', netGex: '-$850M', vanna: '-$65M', io: '6.1M', vol: '2.1M', flow: 'Put', flip: '248.00', call: '260.00', put: '235.00', data: [90, 140, -110, 250, 0, -180, -390, -150, -70] },
+  { sym: 'QQQ', name: 'Nasdaq 100', px: 502.10, chg: '+0.42%', netGex: '+$1.95B', vanna: '+$95M', io: '3.3M', vol: '980K', flow: 'Call', flip: '500.00', call: '515.00', put: '490.00', data: [-100, -210, 60, -280, 0, 150, 380, 190, 80] }
 ];
 
 let currentTickerIdx = 0;
@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
     data: {
       labels: ['-5%', '-3%', '-1%', 'Flip', 'Spot', '+1%', '+3%', '+5%'],
       datasets: [{
-        label: 'Gamma Exposure ($M)',
+        label: 'Exposure Metrics ($M)',
         data: tickers[0].data,
         backgroundColor: context => context.raw < 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(16, 185, 129, 0.7)',
         borderColor: context => context.raw < 0 ? '#ef4444' : '#10b981',
@@ -36,65 +36,51 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // إضافة زر التحديث إلى الواجهة أوتوماتيكياً بجانب الـ Ticker
-  injectRefreshButton();
-
+  injectAdvancedToolbar();
   window.switchTicker(0);
 });
 
-function injectRefreshButton() {
-  const headerEl = document.querySelector('.watchlist-item')?.parentElement?.parentElement;
-  // يمكننا إضافة زر تحديث في الشريط العلوي قرب شريط البحث أو أسفل الشاشة
-  const topNav = document.querySelector('.search-bar, header, .top-bar, .terminal-header') || document.body;
+function injectAdvancedToolbar() {
+  const targetArea = document.querySelector('header') || document.body.firstElementChild;
+  if (!targetArea) return;
+
+  const container = document.createElement('div');
+  container.style.cssText = "display: flex; gap: 10px; padding: 8px 15px; background: #131b2e; align-items: center; border-bottom: 1px solid #222d42;";
   
   const btn = document.createElement('button');
   btn.innerText = "🔄 جلب الأسعار الحية";
-  btn.style.cssText = "background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 10px; font-size: 12px;";
+  btn.style.cssText = "background: #10b981; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;";
   btn.onclick = () => window.fetchLivePrices();
-  
-  // وضعه في مكان بارز في الأعلى
-  const targetArea = document.querySelector('header') || document.body.firstElementChild;
-  if (targetArea) {
-    targetArea.prepend(btn);
-  }
+
+  container.appendChild(btn);
+  targetArea.prepend(container);
 }
 
 window.fetchLivePrices = async function() {
-  const btn = document.querySelector('button');
-  if(btn) btn.innerText = "⏳ جاري التحديث...";
-
   for (let t of tickers) {
     try {
       const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${t.sym}?interval=1d`;
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
-      
       const response = await fetch(proxyUrl);
       if (response.ok) {
         const data = await response.json();
-        if (data && data.chart && data.chart.result) {
+        if (data?.chart?.result) {
           const meta = data.chart.result[0].meta;
           const currentPrice = meta.regularMarketPrice;
-          const previousClose = meta.chartPreviousClose || meta.previousClose;
-          
-          const changeVal = currentPrice - previousClose;
-          const changePct = ((changeVal / previousClose) * 100).toFixed(2);
+          const prevClose = meta.chartPreviousClose || meta.previousClose;
+          const changeVal = currentPrice - prevClose;
+          const changePct = ((changeVal / prevClose) * 100).toFixed(2);
           
           t.px = currentPrice;
           t.chg = (changeVal >= 0 ? '+' : '') + changePct + '%';
-          t.flip = (currentPrice * 0.995).toFixed(2);
-          t.call = (currentPrice * 1.015).toFixed(2);
-          t.put = (currentPrice * 0.985).toFixed(2);
         }
       }
     } catch (e) {
-      console.log(`Could not fetch live price for ${t.sym}, using cache.`);
+      console.log(`Using cached data for ${t.sym}`);
     }
   }
-
-  // إعادة تحديث الواجهة بالسعر الجديد للـ Ticker الحالي
   window.switchTicker(currentTickerIdx);
-  if(btn) btn.innerText = "🔄 جلب الأسعار الحية";
-  alert("تم تحديث الأسعار بنجاح!");
+  alert("تم تحديث بيانات السوق بنجاح!");
 }
 
 window.switchTicker = function(idx) {
@@ -106,6 +92,8 @@ window.switchTicker = function(idx) {
     const isPos = t.chg.startsWith('+');
     document.getElementById('px').innerHTML = `${t.px.toFixed(2)} <span class="change ${isPos ? 'positive' : 'negative'}">${t.chg}</span>`;
   }
+  
+  // تحديث المستويات والتحليلات المتقدمة في اللوحة الجانبية
   if(document.getElementById('lvl-flip')) document.getElementById('lvl-flip').innerText = t.flip;
   if(document.getElementById('lvl-call')) document.getElementById('lvl-call').innerText = t.call;
   if(document.getElementById('lvl-put')) document.getElementById('lvl-put').innerText = t.put;
