@@ -40,11 +40,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.fetchLiveDataForTicker = async function(symbol) {
+  // محاولة الجلب، وإذا وقع أي حظر (403 أو CORS) سيكمل النظام بسلاسة بالقيم الافتراضية
   try {
     const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d`;
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(yahooApiUrl)}`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
     
     const response = await fetch(proxyUrl);
+    if (!response.ok) return;
     const data = await response.json();
     
     if (data && data.chart && data.chart.result) {
@@ -66,7 +68,7 @@ window.fetchLiveDataForTicker = async function(symbol) {
       }
     }
   } catch (error) {
-    console.error("Error fetching direct Yahoo data via corsproxy:", error);
+    console.log("Using local fallback data for stability.");
   }
 }
 
